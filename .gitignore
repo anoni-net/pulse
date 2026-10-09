@@ -1,0 +1,15 @@
+# 2026-10 從 anoni-net/docs 拆出來之前，這些規則寫在文件站根目錄的 .gitignore
+.env
+.venv
+__pycache__/
+.python-version
+.claude/settings.local.json
+.claude/worktrees/
+
+# PostgreSQL 的資料目錄，docker-compose.yml 把它掛到 db 容器
+data/
+
+# 部署主機上的本機檔案：舊版的設定檔、匯出的 CSV、compose 的備份
+backend/setting.py
+backend/*.csv
+*.bak-*

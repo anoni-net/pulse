@@ -1,6 +1,8 @@
 # AGENTS.md
 
-這份文件寫給在 `pulse/` 工作的 AI 協作工具與使用它們的貢獻者。Claude Code 從同目錄的 `CLAUDE.md` 引入這一份。repo 整體的規則見根目錄的 `AGENTS.md`。
+本文件寫給在 Pulse repo 工作的 AI 協作工具與使用它們的貢獻者。Claude Code 從 `CLAUDE.md` 引入這一份。說明文件的寫法照 anoni.net 的[寫作風格規範](https://anoni.net/join/writing-style/)。
+
+Pulse 在 2026-10 從 [`anoni-net/docs`](https://github.com/anoni-net/docs) 的 `pulse/` 目錄拆出來，commit 歷史一併帶過來，舊 commit 訊息裡的 PR 編號寫成 `anoni-net/docs#123`。
 
 ## 專案定位
 
@@ -59,7 +61,7 @@ backend/
 
 ## 關鍵設計
 
-**DB 操作**：使用 `with PGConn() as pg:` context manager，commit/rollback 自動處理；驅動為 psycopg3（非 psycopg2）。
+**DB 操作**：使用 `with PGConn() as pg:` context manager，commit/rollback 自動處理。驅動是 psycopg3（非 psycopg2）。
 
 **Pydantic 欄位別名**：`structs.py` 中 `Relay` 的 `asn` 對應 Onionoo 的 `as` 欄位，`last_changed` 對應 `last_changed_address_or_port`，`model_dump()` 輸出用於 SQL 插入。
 
