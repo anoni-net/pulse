@@ -100,3 +100,10 @@ Backend 內部讀取 `PG_CONN` 連線字串（由 docker-compose 組合）。`CO
 ```bash
 docker-compose up -d --force-recreate db-init
 ```
+
+## 套件升級與部署
+
+Dependabot 每週檢查 Python 套件、兩個 Dockerfile 的基底映像、`docker-compose.yml` 的 PostgreSQL 與 GitHub Actions，PR 由 `check` workflow 驗證。手動升級、部署步驟與 PostgreSQL 換 major 版本的注意事項見 README 的「套件升級與部署」。
+
+- FastAPI 不要改回 `fastapi[standard]`，那組選用相依會帶進 FastAPI Cloud 的 CLI、sentry 與 OpenTelemetry 的匯出套件，Pulse 用不到
+- 部署前更新 `backend/api.py` 的 `version`，部署後用 `/api/healthz` 確認換上新版

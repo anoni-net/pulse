@@ -1,6 +1,6 @@
-FROM ghcr.io/astral-sh/uv:0.9.30 AS uvbin
+FROM ghcr.io/astral-sh/uv:0.12.24 AS uvbin
 
-FROM python:3.12.13-alpine3.23
+FROM python:3.12.15-alpine3.24
 
 WORKDIR /app
 ADD pyproject.toml \
