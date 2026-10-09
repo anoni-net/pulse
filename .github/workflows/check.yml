@@ -1,0 +1,46 @@
+name: check
+# ruff、模組匯入，以及兩個 Docker 映像能不能 build。部署在 m6 手動進行，這裡不推映像。
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: ./backend
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v8.1.0
+      - name: Sync packages
+        run: uv sync --locked
+      - name: Ruff
+        run: uv run ruff check .
+      # 不需要資料庫，確認相依升級之後模組還載入得起來
+      - name: Import
+        run: uv run python -c "import api, tor, tor_onionoo, ooni, pgdb, structs"
+
+  docker:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build backend image
+        run: docker build -f backend/Dockerfile -t pulse-backend:ci backend
+      - name: Build api image
+        run: docker build -f backend/Dockerfile.api -t pulse-api:ci backend
+      # 不接資料庫啟動 API，healthz 回得出版本才算過
+      - name: Smoke test api
+        run: |
+          docker run -d --name api -p 127.0.0.1:8000:8000 pulse-api:ci
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:8000/api/healthz && exit 0; sleep 1; done
+          docker logs api
+          exit 1

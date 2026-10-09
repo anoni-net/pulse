@@ -245,7 +245,7 @@ docker-compose logs -f db
 - 請勿將 `.env` 檔案提交到版本控制系統
 - 使用強密碼設定資料庫
 - 在生產環境中適當配置 CORS 設定
-- 定期更新 Docker 映像檔
+- 基底映像由 Dependabot 每週檢查，見「套件升級與部署」
 
 ## 📝 開發指南
 
@@ -267,6 +267,41 @@ docker-compose logs -f db
 - 所有端點需加上 `/api` 前綴（`root_path="/api"`）
 - CORS 透過環境變數 `CORS_ALLOW_ORIGINS` 和 `CORS_ALLOW_CREDENTIALS` 控制
 - 使用 FastAPI 的自動文件生成功能
+
+## 📦 套件升級與部署
+
+相依套件與基底映像由 Dependabot 每週檢查一次，設定在 `.github/dependabot.yml`：
+
+- `backend/uv.lock` 的 Python 套件，合成一個 PR
+- `backend/Dockerfile`、`backend/Dockerfile.api` 的 uv 與 Python 基底映像
+- `docker-compose.yml` 的 PostgreSQL 映像
+- GitHub Actions 的版本
+
+每個 PR 都會執行 `check` workflow：`uv sync --locked`、ruff 與模組匯入，再 build 兩個映像，不接資料庫啟動 API，`/api/healthz` 回得出版本才算通過。
+
+手動升級 Python 套件：
+
+```bash
+cd backend
+uv lock --upgrade
+uv sync
+uv run ruff check .
+uv run fastapi dev api.py   # 打 /api/healthz、/api/readme 確認
+```
+
+FastAPI 沒有用 `fastapi[standard]` 這組選用相依，只列 `fastapi`、`fastapi-cli` 與 `uvicorn[standard]`。`standard` 裡有部署到 FastAPI Cloud 的 CLI、sentry、httpx、jinja2 與表單處理的套件，Pulse 都用不到，拿掉之後少裝十二個套件。
+
+部署沒有接 CI，PR 合併之後在部署主機的 repo 目錄執行：
+
+```bash
+git pull
+docker compose build
+docker compose up -d
+```
+
+資料目錄 `data/` 不受影響，容器重建大約十幾秒。部署前把 `backend/api.py` 的 `version` 改成當天日期，部署後打 `/api/healthz` 確認 `version` 換成新的，再打 `/api/readyz` 確認資料庫連得上。
+
+PostgreSQL 換 major 版本（例如 17 換 18）時資料目錄不相容，不能只改映像標籤，要先用 `pg_dump` 匯出、換版之後再匯入。Dependabot 開出 major 版本的 PR 時不要直接合併。
 
 ## 📄 授權
 
@@ -523,7 +558,7 @@ docker-compose logs -f db
 - Do not commit `.env` file to version control
 - Use strong passwords for database configuration
 - Configure CORS settings appropriately in production
-- Regularly update Docker images
+- Dependabot checks the base images weekly, see "Upgrading Dependencies and Deploying"
 
 ## 📝 Development Guide
 
@@ -545,6 +580,41 @@ docker-compose logs -f db
 - All endpoints need `/api` prefix (`root_path="/api"`)
 - CORS controlled through environment variables `CORS_ALLOW_ORIGINS` and `CORS_ALLOW_CREDENTIALS`
 - Use FastAPI's automatic documentation generation
+
+## 📦 Upgrading Dependencies and Deploying
+
+Dependabot checks dependencies and base images weekly, configured in `.github/dependabot.yml`:
+
+- Python packages in `backend/uv.lock`, grouped into one PR
+- The uv and Python base images in `backend/Dockerfile` and `backend/Dockerfile.api`
+- The PostgreSQL image in `docker-compose.yml`
+- GitHub Actions versions
+
+Every PR runs the `check` workflow: `uv sync --locked`, ruff and a module import, then a build of both images and an API start without a database. It passes only if `/api/healthz` returns a version.
+
+To upgrade the Python packages by hand:
+
+```bash
+cd backend
+uv lock --upgrade
+uv sync
+uv run ruff check .
+uv run fastapi dev api.py   # check /api/healthz and /api/readme
+```
+
+FastAPI is not installed with the `fastapi[standard]` extra. The dependencies list `fastapi`, `fastapi-cli` and `uvicorn[standard]` directly. The `standard` extra brings in the FastAPI Cloud deployment CLI, sentry, httpx, jinja2 and form handling, none of which Pulse uses, and dropping it removes twelve packages.
+
+Deployment is not wired to CI. After a PR is merged, run this in the repository directory on the host:
+
+```bash
+git pull
+docker compose build
+docker compose up -d
+```
+
+The `data/` directory is untouched, and recreating the containers takes a dozen seconds or so. Before deploying, set `version` in `backend/api.py` to the date. After deploying, check that `/api/healthz` reports the new `version`, then that `/api/readyz` reaches the database.
+
+A PostgreSQL major version change (17 to 18, for example) needs a data migration, since the data directory is not compatible across major versions. Export with `pg_dump`, switch versions, then import. Do not merge a Dependabot PR for a major version as is.
 
 ## 📄 License
 

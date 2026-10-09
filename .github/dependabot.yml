@@ -1,0 +1,27 @@
+# 每週檢查一次相依套件與基底映像。Python 套件合成一個 PR，安全性更新另外即時開。
+version: 2
+updates:
+  - package-ecosystem: uv
+    directory: /backend
+    schedule:
+      interval: weekly
+    groups:
+      python:
+        patterns: ["*"]
+
+  # backend/Dockerfile 與 Dockerfile.api 的 uv、python 基底映像
+  - package-ecosystem: docker
+    directory: /backend
+    schedule:
+      interval: weekly
+
+  # docker-compose.yml 的 postgres 映像
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
