@@ -2,7 +2,9 @@
 
 > 即時監控與統計 Tor 網路中繼資料，提供 API 供前端查詢與視覺化
 
-Pulse 是 anoni.net 專案的 Tor 網路監控系統，定期收集並儲存 Tor 中繼節點資料，透過 FastAPI 提供 REST API 與 Vega-Lite 圖表端點，支援前端應用進行資料視覺化。
+Pulse 是 anoni.net 專案的 Tor 網路監控系統，定期收集並儲存 Tor 中繼節點資料，透過 FastAPI 提供 REST API 與 Vega-Lite 圖表端點，支援前端應用進行資料視覺化。公開的 API 在 <https://anoni.net/api/readme>，文件站的 [Tor Relays 觀測點](https://anoni.net/docs/taiwan/tor-relay-watcher/)就是用它畫圖。
+
+這個專案 2026-10 從 [`anoni-net/docs`](https://github.com/anoni-net/docs) 的 `pulse/` 目錄拆出來，commit 歷史一併帶過來，舊 commit 訊息裡的 PR 編號寫成 `anoni-net/docs#123`。
 
 ## 📊 系統架構
 
@@ -277,6 +279,10 @@ MIT License - 詳見專案根目錄的 LICENSE 檔案
 > Real-time monitoring and statistics of Tor network relay data, providing APIs for frontend queries and visualization
 
 Pulse is the Tor network monitoring system for the anoni.net project. It periodically collects and stores Tor relay node data, providing REST API and Vega-Lite chart endpoints through FastAPI for frontend data visualization.
+
+The public API is at <https://anoni.net/api/readme>, and it feeds the charts on the docs site's [Tor relay watcher](https://anoni.net/docs/en/regional/tor-relay-watcher/).
+
+The project was split out of the `pulse/` directory of [`anoni-net/docs`](https://github.com/anoni-net/docs) in 2026-10 with its commit history. Pull request numbers in the older commit messages are written as `anoni-net/docs#123`.
 
 ## 📊 System Architecture
 
