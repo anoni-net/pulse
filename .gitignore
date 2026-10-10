@@ -8,6 +8,8 @@ __pycache__/
 
 # PostgreSQL 的資料目錄，docker-compose.yml 把它掛到 db 容器
 data/
+# 換 PostgreSQL major 版本時保留的舊資料目錄，例如 data-pg17/
+data-*/
 
 # 部署主機上的本機檔案：舊版的設定檔、匯出的 CSV、compose 的備份
 backend/setting.py

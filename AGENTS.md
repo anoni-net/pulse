@@ -6,7 +6,7 @@ Pulse 在 2026-10 從 [`anoni-net/docs`](https://github.com/anoni-net/docs) 的 
 
 ## 專案定位
 
-Pulse 是 Tor 中繼監控系統，定期從 Tor Onionoo API 收集 TW/JP/KR/HK 四個地區的中繼節點資料，儲存至 PostgreSQL，並透過 FastAPI 提供 Vega-Lite 圖表資料端點。
+Pulse 是 Tor 中繼監控系統，定期從 Tor Onionoo API 收集 TW、JP、KR、HK、SG、IN、VN、DE、US、NL 十個國家的中繼節點資料，儲存至 PostgreSQL，並透過 FastAPI 提供 Vega-Lite 圖表資料端點。
 
 ## 開發指令
 
@@ -38,9 +38,9 @@ docker-compose logs -f
 
 | 服務 | 職責 |
 |------|------|
-| **db** | PostgreSQL 17 |
+| **db** | PostgreSQL 18，`./data` 掛到 `/var/lib/postgresql` |
 | **db-init** | 一次性執行 `dbtxt/*.sql` 建 schema |
-| **backend** | Alpine crond，每小時第 5 分鐘收集四地區資料 |
+| **backend** | Alpine crond，每小時第 5 分鐘收集十個國家的資料 |
 | **api** | FastAPI，port 8000 |
 
 資料流：`Onionoo API → tor.py → relay_details 表 → vega.py 端點 → Vega-Lite 前端`
@@ -73,7 +73,7 @@ backend/
 
 **快取兩層**：`vega.py` 的 `TTLCache` 是行程內快取，`cache_headers` 依賴項讓五個圖表端點都送 `Cache-Control: public, max-age=300`，兩者共用 `CACHE_TTL_SECONDS`。沒有這個 header 時 CDN 會套用 zone 預設值（anoni.net 是 4 小時），收集器每小時寫一次，edge 上那份會讓圖表在資料恢復後繼續顯示舊值好幾個小時。查「資料是不是真的沒更新」時先繞過 CDN 打 origin，或加一個隨機查詢參數。
 
-**Vega 端點**：共 5 個，均接受 `country`（TW/JP/KR/HK enum）和 `limit=45` 參數，回傳 Pydantic model 的 JSON 陣列。
+**Vega 端點**：共 5 個，均接受 `country`（`routers/vega.py` 的 `Country` enum，跟收集的十個國家相同）和 `limit=45` 參數，回傳 Pydantic model 的 JSON 陣列。
 
 **uv 來源**：兩個 Dockerfile 都用 `COPY --from=ghcr.io/astral-sh/uv:<版本> /uv /uvx /bin/` 取得 uv，build 期間不連 astral.sh。改回 `curl | sh` 會讓網路失敗變成難查的 `exit code 127`，因為 pipeline 的 exit code 取自 `sh`，curl 的失敗被吞掉，一路走到 `uv sync` 才報錯。升級 uv 就是改那個版本號。
 
@@ -103,7 +103,7 @@ docker-compose up -d --force-recreate db-init
 
 ## 套件升級與部署
 
-Dependabot 每週檢查 Python 套件、兩個 Dockerfile 的基底映像、`docker-compose.yml` 的 PostgreSQL 與 GitHub Actions，PR 由 `check` workflow 驗證。手動升級、部署步驟與 PostgreSQL 換 major 版本的注意事項見 README 的「套件升級與部署」。
+Dependabot 每週檢查 Python 套件、兩個 Dockerfile 的基底映像、`docker-compose.yml` 的 PostgreSQL 與 GitHub Actions，PR 由 `check` workflow 驗證。手動升級、部署步驟與 PostgreSQL 換 major 版本的搬遷（`tools/pg-major-upgrade.sh`）見 README 的「套件升級與部署」。
 
 - FastAPI 不要改回 `fastapi[standard]`，那組選用相依會帶進 FastAPI Cloud 的 CLI、sentry 與 OpenTelemetry 的匯出套件，Pulse 用不到
 - 部署前更新 `backend/api.py` 的 `version`，部署後用 `/api/healthz` 確認換上新版

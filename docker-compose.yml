@@ -6,15 +6,18 @@ x-logging: &default-logging
 
 services:
   db:
-    image: postgres:17.11-alpine3.24
+    image: postgres:18.6-alpine3.24
     logging: *default-logging
     environment:
       POSTGRES_DB: ${PG_DB}
       POSTGRES_USER: ${PG_USER}
       POSTGRES_PASSWORD: ${PG_PASSWORD}
     restart: always
+    # 18 版起官方映像的 PGDATA 是 /var/lib/postgresql/18/docker，掛載點改成上一層，
+    # 資料放在 data/18/docker。沿用原本的 /var/lib/postgresql/data 掛載點會拒絕啟動。
+    # 之後換 19 版可以在同一個掛載點裡用 pg_upgrade --link，不必整份匯出匯入。
     volumes:
-      - ./data:/var/lib/postgresql/data
+      - ./data:/var/lib/postgresql
     ports:
       - "${PG_HOST}:5432"
     healthcheck:
@@ -25,7 +28,7 @@ services:
       start_period: 10s
 
   db-init:
-    image: postgres:17.11-alpine3.24
+    image: postgres:18.6-alpine3.24
     logging: *default-logging
     depends_on:
       db:
