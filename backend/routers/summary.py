@@ -2,8 +2,8 @@
 Summary endpoint for the Pulse page on anoni.net.
 
 One request per country returns everything the page draws: daily totals, the
-daily spread of Tor release series, and the ASNs, versions and flags of the most
-recent snapshot.
+daily spread of Tor release series and of full versions, and the ASNs, versions
+and flags of the most recent snapshot.
 
 Each day is represented by its last hourly snapshot instead of every relay seen
 during the day. The vega endpoints aggregate a country's whole history on every
@@ -60,6 +60,14 @@ class SeriesCount(BaseModel):
     count: int
 
 
+class VersionDaily(BaseModel):
+    """Running relays on one full Tor version (for example 0.4.9.14) on one day."""
+
+    date: date
+    version: str
+    count: int
+
+
 class AsnCount(BaseModel):
     asn: str
     as_name: str
@@ -91,6 +99,7 @@ class Summary(BaseModel):
     days: int
     daily: list[Daily]
     series: list[SeriesCount]
+    versions: list[VersionDaily]
     latest: Latest
 
 
@@ -125,6 +134,15 @@ SERIES_SQL = SNAPS + """
            split_part(r.version, '.', 1) || '.' || split_part(r.version, '.', 2)
                || '.' || split_part(r.version, '.', 3) AS series,
            count(*)
+    FROM snaps s
+    JOIN relay_details r ON r.created_at = s.ts AND r.country = %(country)s
+    WHERE r.running AND r.version IS NOT NULL
+    GROUP BY 1, 2
+    ORDER BY 1, 2
+"""
+
+VERSIONS_SQL = SNAPS + """
+    SELECT s.dt, r.version, count(*)
     FROM snaps s
     JOIN relay_details r ON r.created_at = s.ts AND r.country = %(country)s
     WHERE r.running AND r.version IS NOT NULL
@@ -175,6 +193,10 @@ def build_summary(country: str, days: int) -> Summary:
             SeriesCount(date=r[0], series=r[1], count=r[2])
             for r in cur.execute(SERIES_SQL, params).fetchall()
         ]
+        versions = [
+            VersionDaily(date=r[0], version=r[1], count=r[2])
+            for r in cur.execute(VERSIONS_SQL, params).fetchall()
+        ]
         ts = cur.execute(LATEST_TS_SQL, params).fetchone()[0]
         latest = Latest(snapshot=ts, asns=[], versions=[], flags=[])
         if ts is not None:
@@ -191,7 +213,8 @@ def build_summary(country: str, days: int) -> Summary:
                 FlagCount(flag=r[0], count=r[1])
                 for r in cur.execute(LATEST_FLAG_SQL, params).fetchall()
             ]
-    return Summary(country=country, days=days, daily=daily, series=series, latest=latest)
+    return Summary(country=country, days=days, daily=daily, series=series, versions=versions,
+                   latest=latest)
 
 
 @router.get("")
