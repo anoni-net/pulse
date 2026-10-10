@@ -18,7 +18,7 @@ import psycopg
 from fastapi import FastAPI, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 
-from routers import vega
+from routers import summary, vega
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ CORS_ALLOW_CREDENTIALS = _cors_allow_credentials_raw in {"1", "true", "yes", "on
 app = FastAPI(
     title="Anoni.net Tor-Watcher API",
     description="Store daily observational datas.",
-    version="2026.10.10.3",
+    version="2026.10.10.4",
     root_path="/api",
     docs_url="/readme",
     openapi_tags=TAG_META,
@@ -74,6 +74,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(vega.router)
+app.include_router(summary.router)
 
 
 @app.get("/")
