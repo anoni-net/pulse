@@ -27,6 +27,9 @@ jobs:
       # 不需要資料庫，確認相依升級之後模組還載入得起來
       - name: Import
         run: uv run python -c "import api, tor, tor_onionoo, ooni, pgdb, structs"
+      # Onionoo 回傳缺欄位的中繼時，要能解析而不是整批失敗
+      - name: Structs
+        run: uv run python test_structs.py
 
   docker:
     runs-on: ubuntu-24.04

@@ -181,30 +181,32 @@ uv run python tor.py details --country=jp
 |------|------|------|
 | created_at | timestamp | 資料收集時間 |
 | fingerprint | varchar(40) | 中繼節點指紋 |
-| nickname | varchar(20) | 節點暱稱 |
+| nickname | text | 節點暱稱 |
 | running | boolean | 是否運行中 |
 | measured | boolean | 是否已測量 |
 | asn | varchar(10) | ASN 編號 |
-| as_name | varchar(100) | ASN 名稱 |
-| consensus_weight | smallserial | 共識權重 |
-| platform | varchar(100) | 平台資訊 |
-| version | varchar(20) | Tor 版本 |
+| as_name | text | ASN 名稱 |
+| consensus_weight | integer NOT NULL | 共識權重 |
+| platform | text | 平台資訊 |
+| version | text | Tor 版本 |
 | country | varchar(10) | 國家代碼 |
-| country_name | varchar(40) | 國家名稱 |
-| contact | varchar(400) | 聯絡資訊 |
+| country_name | text | 國家名稱 |
+| contact | text | 聯絡資訊 |
 | flags | varchar(20)[] | 節點旗標 |
 | first_seen | timestamp | 首次發現時間 |
 | last_seen | timestamp | 最後發現時間 |
 | last_changed | timestamp | 最後變更時間 |
-| bandwidth_rate | bigserial | 頻寬速率 |
-| bandwidth_burst | bigserial | 突發頻寬 |
-| observed_bandwidth | bigserial | 觀測頻寬 |
-| advertised_bandwidth | bigserial | 宣告頻寬 |
+| bandwidth_rate | bigint | 頻寬速率 |
+| bandwidth_burst | bigint | 突發頻寬 |
+| observed_bandwidth | bigint | 觀測頻寬 |
+| advertised_bandwidth | bigint | 宣告頻寬 |
 | guard_probability | NUMERIC(7, 6) | Guard 機率 |
 | middle_probability | NUMERIC(7, 6) | Middle 機率 |
 | exit_probability | NUMERIC(7, 6) | Exit 機率 |
 
 **唯一約束**: `(created_at, fingerprint)`
+
+時間欄位不帶時區，Onionoo 的時間是 UTC。Onionoo 還沒處理到描述檔的中繼（多半是剛加入的）沒有 `platform` 與四個頻寬欄位，存成 NULL。結構定義在 `dbtxt/relay_details.sql`，改既有資料庫的流程見 `AGENTS.md` 的「Schema 修改流程」。
 
 ### asn_count 表
 
@@ -508,30 +510,32 @@ Stores detailed information about Tor relay nodes:
 |-------|------|-------------|
 | created_at | timestamp | Data collection time |
 | fingerprint | varchar(40) | Relay node fingerprint |
-| nickname | varchar(20) | Node nickname |
+| nickname | text | Node nickname |
 | running | boolean | Whether running |
 | measured | boolean | Whether measured |
 | asn | varchar(10) | ASN number |
-| as_name | varchar(100) | ASN name |
-| consensus_weight | smallserial | Consensus weight |
-| platform | varchar(100) | Platform information |
-| version | varchar(20) | Tor version |
+| as_name | text | ASN name |
+| consensus_weight | integer NOT NULL | Consensus weight |
+| platform | text | Platform information |
+| version | text | Tor version |
 | country | varchar(10) | Country code |
-| country_name | varchar(40) | Country name |
-| contact | varchar(400) | Contact information |
+| country_name | text | Country name |
+| contact | text | Contact information |
 | flags | varchar(20)[] | Node flags |
 | first_seen | timestamp | First seen time |
 | last_seen | timestamp | Last seen time |
 | last_changed | timestamp | Last changed time |
-| bandwidth_rate | bigserial | Bandwidth rate |
-| bandwidth_burst | bigserial | Burst bandwidth |
-| observed_bandwidth | bigserial | Observed bandwidth |
-| advertised_bandwidth | bigserial | Advertised bandwidth |
+| bandwidth_rate | bigint | Bandwidth rate |
+| bandwidth_burst | bigint | Burst bandwidth |
+| observed_bandwidth | bigint | Observed bandwidth |
+| advertised_bandwidth | bigint | Advertised bandwidth |
 | guard_probability | NUMERIC(7, 6) | Guard probability |
 | middle_probability | NUMERIC(7, 6) | Middle probability |
 | exit_probability | NUMERIC(7, 6) | Exit probability |
 
 **Unique Constraint**: `(created_at, fingerprint)`
+
+Timestamps carry no time zone; Onionoo reports UTC. Relays whose descriptor Onionoo has not processed yet, usually ones that joined in the last few hours, have no `platform` and none of the four bandwidth fields, and those are stored as NULL. The schema is defined in `dbtxt/relay_details.sql`; see "Schema 修改流程" in `AGENTS.md` for changing an existing database.
 
 ### asn_count Table
 

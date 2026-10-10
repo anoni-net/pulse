@@ -41,7 +41,7 @@ def details(country="tw", save=True):
 
     bandwidth = 0
     for relay in resp_details.relays:
-        bandwidth += relay.observed_bandwidth
+        bandwidth += relay.observed_bandwidth or 0
         logger.info(relay)
 
     logger.info(
