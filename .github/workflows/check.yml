@@ -19,7 +19,7 @@ jobs:
         working-directory: ./backend
     steps:
       - uses: actions/checkout@v6
-      - uses: astral-sh/setup-uv@v8.1.0
+      - uses: astral-sh/setup-uv@v10.2.0
       - name: Sync packages
         run: uv sync --locked
       - name: Ruff
