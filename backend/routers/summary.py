@@ -50,6 +50,9 @@ class Daily(BaseModel):
     guard: int  # running relays with guard_probability > 0
     middle: int
     exit: int
+    # 運作中中繼的 consensus_weight_fraction 加總，占整個 Tor 網路的比例（0 到 1）。
+    # 2026-10 之前的快照沒有這個欄位，是 None
+    weight: float | None = None
 
 
 class SeriesCount(BaseModel):
@@ -122,7 +125,8 @@ DAILY_SQL = SNAPS + """
            count(DISTINCT r.asn) FILTER (WHERE r.running),
            count(*) FILTER (WHERE r.running AND r.guard_probability > 0),
            count(*) FILTER (WHERE r.running AND r.middle_probability > 0),
-           count(*) FILTER (WHERE r.running AND r.exit_probability > 0)
+           count(*) FILTER (WHERE r.running AND r.exit_probability > 0),
+           sum(r.consensus_weight_fraction) FILTER (WHERE r.running)
     FROM snaps s
     JOIN relay_details r ON r.created_at = s.ts AND r.country = %(country)s
     GROUP BY s.dt, s.ts
@@ -186,7 +190,7 @@ def build_summary(country: str, days: int) -> Summary:
         cur = pg_conn.cur
         daily = [
             Daily(date=r[0], snapshot=r[1], running=r[2], stopped=r[3], bandwidth=r[4],
-                  asns=r[5], guard=r[6], middle=r[7], exit=r[8])
+                  asns=r[5], guard=r[6], middle=r[7], exit=r[8], weight=r[9])
             for r in cur.execute(DAILY_SQL, params).fetchall()
         ]
         series = [

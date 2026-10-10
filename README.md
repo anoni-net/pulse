@@ -28,11 +28,12 @@ pulse/
 
 ## ✨ 功能特點
 
-- **定期資料收集**: 每小時自動收集十個國家（TW、JP、KR、HK、SG、IN、VN、DE、US、NL）的 Tor 中繼資料
+- **定期資料收集**: 每小時依序收集十五個國家（TW、HK、MO、JP、KR、SG、VN、IN、ID、MY、PH、TH、DE、NL、US）的 Tor 中繼資料，清單在 `backend/countries.py`
 - **完整資料儲存**: PostgreSQL 資料庫儲存中繼節點詳細資訊與歷史紀錄
 - **RESTful API**: FastAPI 提供高效能 REST API
 - **視覺化支援**: Vega-Lite 格式圖表資料端點
 - **健康檢查**: 內建 `/api/healthz` 與 `/api/readyz` 端點（`root_path="/api"`），容器 healthcheck 探測 `/api/readyz`
+- **收集中斷提醒**: `/api/freshness` 回傳各國最新快照的時間，`tools/freshness_warn.py` 在狀態改變時推播到 ntfy
 - **CORS 支援**: 可配置跨域請求設定
 - **Docker 部署**: 一鍵啟動完整服務
 
@@ -117,7 +118,7 @@ docker-compose down
 - **排程**:
   - `@reboot`: 容器啟動時立即執行一次
   - `5 * * * *`: 每小時第 5 分鐘執行
-- **監控國家**: TW、JP、KR、HK、SG、IN、VN、DE、US、NL
+- **監控國家**: TW、HK、MO、JP、KR、SG、VN、IN、ID、MY、PH、TH、DE、NL、US（`backend/countries.py`），`tor.py collect` 一次一個依序收集
 
 ### api
 - **基礎映像**: `python:3.14.8-alpine3.24`
@@ -135,6 +136,7 @@ docker-compose down
 
 - `GET /api/healthz` - 基本健康檢查，只回版本，不連資料庫
 - `GET /api/readyz` - 就緒檢查，連線資料庫，連不上回 503
+- `GET /api/freshness?hours=4` - 每個國家最新快照的時間與距今幾小時，超過 `hours` 的列在 `stale`。資料庫連不上回 503
 
 圖表端點送 `Cache-Control: public, max-age=300`，與 `vega.py` 行程內的 `TTLCache` 同一個 TTL。健康檢查端點送 `no-store`。
 
@@ -146,7 +148,7 @@ docker-compose down
 
 `GET /api/summary?country=tw&days=60` 一次回傳一個國家在 anoni.net Pulse 頁面要畫的所有資料：
 
-- `daily`：每天最後一次快照的運作中與已停止數量、運作中的總頻寬、ASN 數、Guard、Middle、Exit 數量
+- `daily`：每天最後一次快照的運作中與已停止數量、運作中的總頻寬、ASN 數、Guard、Middle、Exit 數量，以及 `weight`（運作中中繼占全網路共識權重的比例，0 到 1，2026-10 之前的快照是 `null`）
 - `series`：每天運作中的中繼在各 Tor 版本系列（例如 `0.4.9`）的數量
 - `versions`：每天運作中的中繼在各個完整版本（例如 `0.4.9.14`）的數量，看新版發布後的更新速度
 - `latest`：最近一次快照的 ASN、版本與旗標分布
@@ -175,10 +177,10 @@ uv run uvicorn api:app --reload
 ### 手動收集資料
 
 ```bash
-# 收集台灣的 Tor 中繼資料
-uv run python tor.py details --country=tw
+# 依序收集 countries.py 的全部國家
+uv run python tor.py collect
 
-# 收集日本的 Tor 中繼資料
+# 只收集日本
 uv run python tor.py details --country=jp
 ```
 
@@ -214,6 +216,7 @@ uv run python tor.py details --country=jp
 | guard_probability | NUMERIC(7, 6) | Guard 機率 |
 | middle_probability | NUMERIC(7, 6) | Middle 機率 |
 | exit_probability | NUMERIC(7, 6) | Exit 機率 |
+| consensus_weight_fraction | double precision | 占全網路共識權重的比例（0 到 1），migration 006 之前是 NULL |
 
 **唯一約束**: `(created_at, fingerprint)`
 
@@ -229,16 +232,10 @@ Backend 容器使用 Alpine Linux 的 crond 執行定期任務：
 
 ```cron
 # 容器啟動時立即執行一次
-@reboot cd /app; uv run tor.py details
-@reboot cd /app; uv run tor.py details --country=jp
-@reboot cd /app; uv run tor.py details --country=kr
-@reboot cd /app; uv run tor.py details --country=hk
+@reboot cd /app; uv run tor.py collect
 
 # 每小時第 5 分鐘執行
-5 * * * * cd /app; uv run tor.py details
-5 * * * * cd /app; uv run tor.py details --country=jp
-5 * * * * cd /app; uv run tor.py details --country=kr
-5 * * * * cd /app; uv run tor.py details --country=hk
+5 * * * * cd /app; uv run tor.py collect
 ```
 
 ## 🔍 日誌查看
@@ -314,6 +311,18 @@ docker compose up -d
 
 資料目錄 `data/` 不受影響，容器重建大約十幾秒。部署前把 `backend/api.py` 的 `version` 改成當天日期，部署後打 `/api/healthz` 確認 `version` 換成新的，再打 `/api/readyz` 確認資料庫連得上。
 
+### 收集中斷的提醒
+
+readyz 只確認資料庫連得上，收集器停掉時 API 照樣健康，2026-07-08 到 08-23 的 47 天就是這樣漏掉的。`tools/freshness_warn.py` 每小時讀一次 `/api/freshness`，任何國家的最新快照超過 4 小時、或 API 沒有回應時推播到 ntfy，恢復時再推一次。狀態沒有變化就不推，不會每小時重複。
+
+腳本只用標準函式庫，在部署主機上用系統的 python3 執行。加進部署主機的 user crontab，錯開收集的第 5 分鐘：
+
+```cron
+40 * * * * PULSE_NTFY=http://<ntfy 主機>/<topic> python3 /path/to/pulse/tools/freshness_warn.py >> /path/to/pulse-freshness.log 2>&1
+```
+
+加 `--force` 會不管狀態推播一次，用來確認通知收得到。其他環境變數寫在腳本開頭。
+
 PostgreSQL 換 major 版本時資料目錄不相容，不能只改映像標籤。Dependabot 開出 major 版本的 PR 時不要直接合併，照下面的步驟搬資料，2026-10 從 17 換 18 就是這樣做的。
 
 1. 在 repo 目錄、舊版還在執行時，執行 `tools/pg-major-upgrade.sh`。它會停掉 backend 凍結寫入（api 繼續服務），用新版的 `pg_dump` 匯出到 `backup/`，在暫時的新版容器裡還原到 `data-new/`，最後比對兩邊的筆數
@@ -368,11 +377,12 @@ pulse/
 
 ## ✨ Features
 
-- **Scheduled Data Collection**: Automatically collect Tor relay data for ten countries (TW, JP, KR, HK, SG, IN, VN, DE, US, NL) every hour
+- **Scheduled Data Collection**: Collect Tor relay data for fifteen countries (TW, HK, MO, JP, KR, SG, VN, IN, ID, MY, PH, TH, DE, NL, US) every hour, one after another; the list is in `backend/countries.py`
 - **Complete Data Storage**: PostgreSQL database stores relay node details and historical records
 - **RESTful API**: High-performance REST API provided by FastAPI
 - **Visualization Support**: Vega-Lite format chart data endpoints
 - **Health Checks**: Built-in `/api/healthz` and `/api/readyz` endpoints; the container healthcheck probes `/api/readyz`
+- **Collection Alerts**: `/api/freshness` reports the latest snapshot of each country, and `tools/freshness_warn.py` pushes to ntfy when that changes
 - **CORS Support**: Configurable cross-origin request settings
 - **Docker Deployment**: One-click launch of complete services
 
@@ -457,7 +467,7 @@ docker-compose down
 - **Schedule**:
   - `@reboot`: Execute once immediately on container startup
   - `5 * * * *`: Execute at minute 5 of every hour
-- **Monitored Countries**: TW, JP, KR, HK, SG, IN, VN, DE, US, NL
+- **Monitored Countries**: TW, HK, MO, JP, KR, SG, VN, IN, ID, MY, PH, TH, DE, NL, US (`backend/countries.py`), collected one at a time by `tor.py collect`
 
 ### api
 - **Base Image**: `python:3.14.8-alpine3.24`
@@ -475,6 +485,7 @@ docker-compose down
 
 - `GET /api/healthz` - Basic health check, version only, never touches the database
 - `GET /api/readyz` - Readiness check, opens a database connection, answers 503 when it fails
+- `GET /api/freshness?hours=4` - Latest snapshot of each country and its age in hours; countries older than `hours` are listed in `stale`. Answers 503 when the database is unreachable
 
 Chart endpoints send `Cache-Control: public, max-age=300`, the same TTL as the in-process `TTLCache` in `vega.py`. Health endpoints send `no-store`.
 
@@ -486,7 +497,7 @@ See API documentation: `http://localhost:8000/api/readme`
 
 `GET /api/summary?country=tw&days=60` returns everything the anoni.net Pulse page draws for one country in a single response:
 
-- `daily`: running and stopped counts, total bandwidth of running relays, number of ASNs, and Guard, Middle and Exit counts, from the last snapshot of each day
+- `daily`: running and stopped counts, total bandwidth of running relays, number of ASNs, Guard, Middle and Exit counts, and `weight` (the running relays' share of the network's consensus weight, 0 to 1, `null` before 2026-10), from the last snapshot of each day
 - `series`: running relays per Tor release series (for example `0.4.9`) per day
 - `versions`: running relays per full Tor version (for example `0.4.9.14`) per day, to see how fast operators upgrade after a release
 - `latest`: the ASNs, versions and flags of the most recent snapshot
@@ -515,10 +526,10 @@ uv run uvicorn api:app --reload
 ### Manual Data Collection
 
 ```bash
-# Collect Taiwan Tor relay data
-uv run python tor.py details --country=tw
+# Collect every country in countries.py, one after another
+uv run python tor.py collect
 
-# Collect Japan Tor relay data
+# Collect Japan only
 uv run python tor.py details --country=jp
 ```
 
@@ -554,6 +565,7 @@ Stores detailed information about Tor relay nodes:
 | guard_probability | NUMERIC(7, 6) | Guard probability |
 | middle_probability | NUMERIC(7, 6) | Middle probability |
 | exit_probability | NUMERIC(7, 6) | Exit probability |
+| consensus_weight_fraction | double precision | Share of the whole network's consensus weight (0 to 1), NULL before migration 006 |
 
 **Unique Constraint**: `(created_at, fingerprint)`
 
@@ -569,16 +581,10 @@ The backend container uses Alpine Linux's crond to execute scheduled tasks:
 
 ```cron
 # Execute once immediately on container startup
-@reboot cd /app; uv run tor.py details
-@reboot cd /app; uv run tor.py details --country=jp
-@reboot cd /app; uv run tor.py details --country=kr
-@reboot cd /app; uv run tor.py details --country=hk
+@reboot cd /app; uv run tor.py collect
 
 # Execute at minute 5 of every hour
-5 * * * * cd /app; uv run tor.py details
-5 * * * * cd /app; uv run tor.py details --country=jp
-5 * * * * cd /app; uv run tor.py details --country=kr
-5 * * * * cd /app; uv run tor.py details --country=hk
+5 * * * * cd /app; uv run tor.py collect
 ```
 
 ## 🔍 View Logs

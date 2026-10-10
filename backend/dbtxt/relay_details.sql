@@ -1,5 +1,5 @@
 -- relay_details：每小時一份 Onionoo details 的快照，一個中繼一列。
--- 跟正式機的實際結構對齊（2026-10，migrations 001 到 005 之後）。時間欄位不帶時區，
+-- 跟正式機的實際結構對齊（2026-10，migrations 001 到 006 之後）。時間欄位不帶時區，
 -- Onionoo 的時間本來就是 UTC；帶時區的話 date(created_at) 不是 IMMUTABLE，建不起索引。
 
 CREATE TABLE IF NOT EXISTS relay_details (
@@ -28,6 +28,8 @@ CREATE TABLE IF NOT EXISTS relay_details (
     guard_probability NUMERIC(7, 6),
     middle_probability NUMERIC(7, 6),
     exit_probability NUMERIC(7, 6),
+    -- 占全網路共識權重的比例，006 之前收集的快照是 NULL。放在最後，跟 ALTER TABLE 加上的欄位順序一致
+    consensus_weight_fraction double precision,
     UNIQUE (created_at, fingerprint)
 );
 

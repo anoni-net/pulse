@@ -9,6 +9,7 @@ import sys
 
 import click
 
+from countries import COUNTRIES
 from pgdb import PGConn
 from tor_onionoo import TorOnionoo
 
@@ -28,16 +29,13 @@ def cli():
     """cli for groups"""
 
 
-@cli.command("details", short_help="Get tor nodes details")
-@click.option("--country", default="tw", help="country code")
-@click.option("--save", default=True, help="country code")
-def details(country="tw", save=True):
-    """Get details"""
+def fetch_and_save(country: str, save: bool = True) -> bool:
+    """收集一個國家的一份快照，成功回傳 True。"""
     try:
         resp_details = TorOnionoo().get_details(country=country)
     except Exception as e:
         logger.error("Failed to fetch Onionoo data for %s: %s", country, e)
-        raise SystemExit(1)
+        return False
 
     bandwidth = 0
     for relay in resp_details.relays:
@@ -72,6 +70,7 @@ def details(country="tw", save=True):
                        bandwidth_burst,
                        observed_bandwidth,
                        advertised_bandwidth,
+                       consensus_weight_fraction,
                        guard_probability,
                        middle_probability,
                        exit_probability
@@ -97,6 +96,7 @@ def details(country="tw", save=True):
                        %(bandwidth_burst)s,
                        %(observed_bandwidth)s,
                        %(advertised_bandwidth)s,
+                       %(consensus_weight_fraction)s,
                        %(guard_probability)s,
                        %(middle_probability)s,
                        %(exit_probability)s
@@ -110,6 +110,37 @@ def details(country="tw", save=True):
                 relay_dict["created_at"] = resp_details.relays_published
                 logger.info(relay_dict)
                 pg.cur.execute(sql, relay_dict)
+    return True
+
+
+@cli.command("details", short_help="Get tor nodes details")
+@click.option("--country", default="tw", help="country code")
+@click.option("--save", default=True, help="save to the database")
+def details(country="tw", save=True):
+    """收集單一國家"""
+    if not fetch_and_save(country, save):
+        raise SystemExit(1)
+
+
+@cli.command("collect", short_help="Collect every country in countries.py")
+@click.option("--save", default=True, help="save to the database")
+def collect(save=True):
+    """依序收集 countries.py 的所有國家。
+
+    一次一個，不同時打 Onionoo。某個國家失敗不影響其他國家，全部跑完才以 1 結束。
+    """
+    failed = []
+    for country in COUNTRIES:
+        try:
+            ok = fetch_and_save(country, save)
+        except Exception:
+            logger.exception("Failed to save %s", country)
+            ok = False
+        if not ok:
+            failed.append(country)
+    if failed:
+        logger.error("collect failed for: %s", ", ".join(failed))
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

@@ -6,6 +6,7 @@ WORKDIR /app
 ADD pyproject.toml \
     uv.lock \
     structs.py \
+    countries.py \
     pgdb.py \
     tor_onionoo.py \
     tor.py \
@@ -24,28 +25,9 @@ RUN \
     uv sync && \
     rm -rf /var/cache/apk/* /var/lib/apk/* /etc/apk/cache/*
 
+# 國家清單在 countries.py，tor.py collect 一次一個依序收集，新增國家不必改這裡
 RUN \
-    echo "@reboot cd /app; uv run tor.py details" >> /etc/crontabs/root && \
-    echo "@reboot cd /app; uv run tor.py details --country=jp" >> /etc/crontabs/root && \
-    echo "@reboot cd /app; uv run tor.py details --country=kr" >> /etc/crontabs/root && \
-    echo "@reboot cd /app; uv run tor.py details --country=hk" >> /etc/crontabs/root && \
-    echo "@reboot cd /app; uv run tor.py details --country=sg" >> /etc/crontabs/root && \
-    echo "@reboot cd /app; uv run tor.py details --country=in" >> /etc/crontabs/root && \
-    echo "@reboot cd /app; uv run tor.py details --country=vn" >> /etc/crontabs/root && \
-    echo "@reboot cd /app; uv run tor.py details --country=de" >> /etc/crontabs/root && \
-    echo "@reboot cd /app; uv run tor.py details --country=us" >> /etc/crontabs/root && \
-    echo "@reboot cd /app; uv run tor.py details --country=nl" >> /etc/crontabs/root
-
-RUN \
-    echo "5 * * * * cd /app; uv run tor.py details" >> /etc/crontabs/root && \
-    echo "5 * * * * cd /app; uv run tor.py details --country=jp" >> /etc/crontabs/root && \
-    echo "5 * * * * cd /app; uv run tor.py details --country=kr" >> /etc/crontabs/root && \
-    echo "5 * * * * cd /app; uv run tor.py details --country=hk" >> /etc/crontabs/root && \
-    echo "5 * * * * cd /app; uv run tor.py details --country=sg" >> /etc/crontabs/root && \
-    echo "5 * * * * cd /app; uv run tor.py details --country=in" >> /etc/crontabs/root && \
-    echo "5 * * * * cd /app; uv run tor.py details --country=vn" >> /etc/crontabs/root && \
-    echo "5 * * * * cd /app; uv run tor.py details --country=de" >> /etc/crontabs/root && \
-    echo "5 * * * * cd /app; uv run tor.py details --country=us" >> /etc/crontabs/root && \
-    echo "5 * * * * cd /app; uv run tor.py details --country=nl" >> /etc/crontabs/root
+    echo "@reboot cd /app; uv run tor.py collect" >> /etc/crontabs/root && \
+    echo "5 * * * * cd /app; uv run tor.py collect" >> /etc/crontabs/root
 
 ENTRYPOINT ["/bin/sh", "-c", "crond -f"]

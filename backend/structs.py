@@ -30,6 +30,8 @@ class Relay(BaseModel):
     bandwidth_burst: int | None = None
     observed_bandwidth: int | None = None
     advertised_bandwidth: int | None = None
+    # 占全網路共識權重的比例，0 到 1。可以用來比較各國的實際轉送能量，中繼數量相同時頻寬可能差很多
+    consensus_weight_fraction: float | None = None
     guard_probability: float = 0
     middle_probability: float = 0
     exit_probability: float = 0
