@@ -6,7 +6,7 @@ Pulse 在 2026-10 從 [`anoni-net/docs`](https://github.com/anoni-net/docs) 的 
 
 ## 專案定位
 
-Pulse 是 Tor 中繼監控系統，定期從 Tor Onionoo API 收集 TW、HK、MO、JP、KR、SG、VN、IN、ID、MY、PH、TH、DE、NL、US 十五個國家的中繼節點資料（清單在 `backend/countries.py`），儲存至 PostgreSQL，並透過 FastAPI 提供 Vega-Lite 圖表資料端點。
+Pulse 是 anoni.net 社群 [Tor 中繼節點觀測](https://anoni.net/projects/pulse/)背後的 Tor 中繼監控系統，定期從 Tor Onionoo API 收集 TW、HK、MO、JP、KR、SG、VN、IN、ID、MY、PH、TH、DE、NL、US 十五個國家的中繼節點資料（清單在 `backend/countries.py`），儲存至 PostgreSQL，並透過 FastAPI 提供 Vega-Lite 圖表資料端點。
 
 ## 開發指令
 
