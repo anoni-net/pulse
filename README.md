@@ -28,7 +28,7 @@ pulse/
 
 ## ✨ 功能特點
 
-- **定期資料收集**: 每小時自動收集 TW、JP、KR、HK 的 Tor 中繼資料
+- **定期資料收集**: 每小時自動收集十個國家（TW、JP、KR、HK、SG、IN、VN、DE、US、NL）的 Tor 中繼資料
 - **完整資料儲存**: PostgreSQL 資料庫儲存中繼節點詳細資訊與歷史紀錄
 - **RESTful API**: FastAPI 提供高效能 REST API
 - **視覺化支援**: Vega-Lite 格式圖表資料端點
@@ -38,9 +38,9 @@ pulse/
 
 ## 🛠️ 技術堆疊
 
-- **語言**: Python 3.12+
+- **語言**: Python 3.12+，容器使用 3.14
 - **Web 框架**: FastAPI
-- **資料庫**: PostgreSQL 17
+- **資料庫**: PostgreSQL 18
 - **資料庫驅動**: psycopg 3
 - **排程器**: Alpine crond
 - **容器化**: Docker + Docker Compose
@@ -100,27 +100,27 @@ docker-compose down
 ## 📡 Docker 服務說明
 
 ### db (PostgreSQL)
-- **映像**: `postgres:17.7-alpine3.23`
+- **映像**: `postgres:18.6-alpine3.24`
 - **功能**: PostgreSQL 資料庫服務
 - **健康檢查**: 使用 `pg_isready` 確認資料庫可用性
-- **資料持久化**: 掛載 `./data` 目錄
+- **資料持久化**: `./data` 掛到 `/var/lib/postgresql`，資料在 `data/18/docker`
 
 ### db-init
-- **映像**: `postgres:17.7-alpine3.23`
+- **映像**: `postgres:18.6-alpine3.24`
 - **功能**: 初始化資料庫 schema
 - **執行時機**: 僅在 db 服務健康後執行一次
 - **SQL 檔案**: 自動執行 `dbtxt/*.sql`
 
 ### backend
-- **基礎映像**: `python:3.12.12-alpine3.23`
+- **基礎映像**: `python:3.14.8-alpine3.24`
 - **功能**: 定期收集 Tor 中繼資料
 - **排程**:
   - `@reboot`: 容器啟動時立即執行一次
   - `5 * * * *`: 每小時第 5 分鐘執行
-- **監控國家**: TW, JP, KR, HK
+- **監控國家**: TW、JP、KR、HK、SG、IN、VN、DE、US、NL
 
 ### api
-- **基礎映像**: `python:3.12.12-alpine3.23`
+- **基礎映像**: `python:3.14.8-alpine3.24`
 - **功能**: 提供 REST API 與圖表資料端點
 - **端點路徑**: `/api/*` (配置 `root_path="/api"`)
 - **文件**: `/api/readme` (Swagger UI)
@@ -301,7 +301,21 @@ docker compose up -d
 
 資料目錄 `data/` 不受影響，容器重建大約十幾秒。部署前把 `backend/api.py` 的 `version` 改成當天日期，部署後打 `/api/healthz` 確認 `version` 換成新的，再打 `/api/readyz` 確認資料庫連得上。
 
-PostgreSQL 換 major 版本（例如 17 換 18）時資料目錄不相容，不能只改映像標籤，要先用 `pg_dump` 匯出、換版之後再匯入。Dependabot 開出 major 版本的 PR 時不要直接合併。
+PostgreSQL 換 major 版本時資料目錄不相容，不能只改映像標籤。Dependabot 開出 major 版本的 PR 時不要直接合併，照下面的步驟搬資料，2026-10 從 17 換 18 就是這樣做的。
+
+1. 在 repo 目錄、舊版還在執行時，執行 `tools/pg-major-upgrade.sh`。它會停掉 backend 凍結寫入（api 繼續服務），用新版的 `pg_dump` 匯出到 `backup/`，在暫時的新版容器裡還原到 `data-new/`，最後比對兩邊的筆數
+2. 筆數一致之後切換，停機只有這一段，大約十幾秒：
+
+    ```bash
+    docker compose down
+    sudo mv data data-pg17 && sudo mv data-new data
+    git pull                     # 換成新版的 docker-compose.yml
+    docker compose up -d --build
+    ```
+
+3. 確認 `/api/readyz`、圖表端點與下一輪收集都正常之後，再刪掉 `data-pg17/` 與 `backup/` 的匯出檔
+
+18 版起資料放在 `data/18/docker`，掛載點是整個 `/var/lib/postgresql`。之後換 19 版也可以改用 `pg_upgrade --link`，在同一個掛載點裡直接升級。
 
 ## 📄 授權
 
@@ -341,7 +355,7 @@ pulse/
 
 ## ✨ Features
 
-- **Scheduled Data Collection**: Automatically collect Tor relay data from TW, JP, KR, HK every hour
+- **Scheduled Data Collection**: Automatically collect Tor relay data for ten countries (TW, JP, KR, HK, SG, IN, VN, DE, US, NL) every hour
 - **Complete Data Storage**: PostgreSQL database stores relay node details and historical records
 - **RESTful API**: High-performance REST API provided by FastAPI
 - **Visualization Support**: Vega-Lite format chart data endpoints
@@ -351,9 +365,9 @@ pulse/
 
 ## 🛠️ Tech Stack
 
-- **Language**: Python 3.12+
+- **Language**: Python 3.12+, with 3.14 in the containers
 - **Web Framework**: FastAPI
-- **Database**: PostgreSQL 17
+- **Database**: PostgreSQL 18
 - **Database Driver**: psycopg 3
 - **Scheduler**: Alpine crond
 - **Containerization**: Docker + Docker Compose
@@ -413,27 +427,27 @@ docker-compose down
 ## 📡 Docker Services
 
 ### db (PostgreSQL)
-- **Image**: `postgres:17.7-alpine3.23`
+- **Image**: `postgres:18.6-alpine3.24`
 - **Function**: PostgreSQL database service
 - **Health Check**: Uses `pg_isready` to verify database availability
 - **Data Persistence**: Mounts `./data` directory
 
 ### db-init
-- **Image**: `postgres:17.7-alpine3.23`
+- **Image**: `postgres:18.6-alpine3.24`
 - **Function**: Initialize database schema
 - **Execution**: Runs once after db service is healthy
 - **SQL Files**: Automatically executes `dbtxt/*.sql`
 
 ### backend
-- **Base Image**: `python:3.12.12-alpine3.23`
+- **Base Image**: `python:3.14.8-alpine3.24`
 - **Function**: Periodically collect Tor relay data
 - **Schedule**:
   - `@reboot`: Execute once immediately on container startup
   - `5 * * * *`: Execute at minute 5 of every hour
-- **Monitored Countries**: TW, JP, KR, HK
+- **Monitored Countries**: TW, JP, KR, HK, SG, IN, VN, DE, US, NL
 
 ### api
-- **Base Image**: `python:3.12.12-alpine3.23`
+- **Base Image**: `python:3.14.8-alpine3.24`
 - **Function**: Provide REST API and chart data endpoints
 - **Endpoint Path**: `/api/*` (configured with `root_path="/api"`)
 - **Documentation**: `/api/readme` (Swagger UI)
@@ -614,7 +628,21 @@ docker compose up -d
 
 The `data/` directory is untouched, and recreating the containers takes a dozen seconds or so. Before deploying, set `version` in `backend/api.py` to the date. After deploying, check that `/api/healthz` reports the new `version`, then that `/api/readyz` reaches the database.
 
-A PostgreSQL major version change (17 to 18, for example) needs a data migration, since the data directory is not compatible across major versions. Export with `pg_dump`, switch versions, then import. Do not merge a Dependabot PR for a major version as is.
+A PostgreSQL major version change needs a data migration, since the data directory is not compatible across major versions. Do not merge a Dependabot PR for a major version as is. Follow these steps instead, which is how the move from 17 to 18 was done in 2026-10.
+
+1. In the repository directory, with the old version still running, run `tools/pg-major-upgrade.sh`. It stops the backend to freeze writes (the API keeps serving), exports with the new version's `pg_dump` into `backup/`, restores into `data-new/` in a temporary container of the new version, and compares row counts on both sides
+2. Once the counts match, switch over. This is the only downtime, a dozen seconds or so:
+
+    ```bash
+    docker compose down
+    sudo mv data data-pg17 && sudo mv data-new data
+    git pull                     # brings in the new docker-compose.yml
+    docker compose up -d --build
+    ```
+
+3. After `/api/readyz`, the chart endpoints and the next collection run all check out, delete `data-pg17/` and the dump in `backup/`
+
+From version 18 the data lives in `data/18/docker`, with the whole `/var/lib/postgresql` as the mount point. A future move to 19 can use `pg_upgrade --link` in place within the same mount.
 
 ## 📄 License
 
