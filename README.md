@@ -142,6 +142,16 @@ docker-compose down
 
 詳見 API 文件：`http://localhost:8000/api/readme`
 
+### 國家摘要
+
+`GET /api/summary?country=tw&days=60` 一次回傳一個國家在 anoni.net Pulse 頁面要畫的所有資料：
+
+- `daily`：每天最後一次快照的運作中與已停止數量、運作中的總頻寬、ASN 數、Guard、Middle、Exit 數量
+- `series`：每天運作中的中繼在各 Tor 版本系列（例如 `0.4.9`）的數量
+- `latest`：最近一次快照的 ASN、版本與旗標分布
+
+`days` 介於 7 到 365，預設 60。每天只取最後一次快照，不是整天出現過的所有中繼，這樣查詢只會讀到期間內的資料：美國 60 天約一秒，vega 的 flags 端點每次都彙整整段歷史，美國要五十幾秒。
+
 ## 💻 本地開發
 
 ### 設定開發環境
@@ -470,6 +480,16 @@ Chart endpoints send `Cache-Control: public, max-age=300`, the same TTL as the i
 ### Vega-Lite Chart Data
 
 See API documentation: `http://localhost:8000/api/readme`
+
+### Country Summary
+
+`GET /api/summary?country=tw&days=60` returns everything the anoni.net Pulse page draws for one country in a single response:
+
+- `daily`: running and stopped counts, total bandwidth of running relays, number of ASNs, and Guard, Middle and Exit counts, from the last snapshot of each day
+- `series`: running relays per Tor release series (for example `0.4.9`) per day
+- `latest`: the ASNs, versions and flags of the most recent snapshot
+
+`days` ranges from 7 to 365 and defaults to 60. Each day is represented by its last snapshot rather than every relay seen during the day, so the query only reads data inside the window. Sixty days for the United States takes about a second, while the vega flags endpoint aggregates the whole history on every call and takes over fifty seconds.
 
 ## 💻 Local Development
 
