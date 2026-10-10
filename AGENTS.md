@@ -6,7 +6,7 @@ Pulse 在 2026-10 從 [`anoni-net/docs`](https://github.com/anoni-net/docs) 的 
 
 ## 專案定位
 
-Pulse 是 Tor 中繼監控系統，定期從 Tor Onionoo API 收集 TW、JP、KR、HK、SG、IN、VN、DE、US、NL 十個國家的中繼節點資料，儲存至 PostgreSQL，並透過 FastAPI 提供 Vega-Lite 圖表資料端點。
+Pulse 是 Tor 中繼監控系統，定期從 Tor Onionoo API 收集 TW、HK、MO、JP、KR、SG、VN、IN、ID、MY、PH、TH、DE、NL、US 十五個國家的中繼節點資料（清單在 `backend/countries.py`），儲存至 PostgreSQL，並透過 FastAPI 提供 Vega-Lite 圖表資料端點。
 
 ## 開發指令
 
@@ -17,8 +17,8 @@ uv sync
 uv run fastapi dev api.py
 
 # 手動觸發資料收集
-uv run python tor.py details                 # TW
-uv run python tor.py details --country=jp   # JP/KR/HK 同理
+uv run python tor.py collect                 # countries.py 的全部國家，依序一次一個
+uv run python tor.py details --country=jp   # 只收一個國家
 
 # 載入 OONI ASN 資料
 uv run python ooni.py asn --path=<csv_file> --save=True
@@ -40,7 +40,7 @@ docker-compose logs -f
 |------|------|
 | **db** | PostgreSQL 18，`./data` 掛到 `/var/lib/postgresql` |
 | **db-init** | 一次性執行 `dbtxt/*.sql` 建 schema |
-| **backend** | Alpine crond，每小時第 5 分鐘收集十個國家的資料 |
+| **backend** | Alpine crond，每小時第 5 分鐘依序收集十五個國家的資料 |
 | **api** | FastAPI，port 8000 |
 
 資料流：`Onionoo API → tor.py → relay_details 表 → vega.py 端點 → Vega-Lite 前端`
@@ -49,7 +49,8 @@ docker-compose logs -f
 
 ```
 backend/
-├── api.py              # FastAPI 進入點，含 CORS / healthz / readyz
+├── api.py              # FastAPI 進入點，含 CORS / healthz / readyz / freshness
+├── countries.py        # 收集的國家清單，收集排程與 API 共用
 ├── tor.py              # Click CLI，fetch → validate → upsert
 ├── tor_onionoo.py      # requests.Session 封裝 Onionoo API
 ├── ooni.py             # OONI CSV 資料匯入
@@ -73,11 +74,13 @@ backend/
 
 **快取兩層**：`vega.py` 的 `TTLCache` 是行程內快取，`cache_headers` 依賴項讓五個圖表端點都送 `Cache-Control: public, max-age=300`，兩者共用 `CACHE_TTL_SECONDS`。沒有這個 header 時 CDN 會套用 zone 預設值（anoni.net 是 4 小時），收集器每小時寫一次，edge 上那份會讓圖表在資料恢復後繼續顯示舊值好幾個小時。查「資料是不是真的沒更新」時先繞過 CDN 打 origin，或加一個隨機查詢參數。
 
-**Vega 端點**：共 5 個，均接受 `country`（`routers/vega.py` 的 `Country` enum，跟收集的十個國家相同）和 `limit=45` 參數，回傳 Pydantic model 的 JSON 陣列。
+**Vega 端點**：共 5 個，均接受 `country`（`routers/vega.py` 的 `Country` enum，由 `countries.py` 產生，跟收集的國家相同）和 `limit=45` 參數，回傳 Pydantic model 的 JSON 陣列。
 
 **uv 來源**：兩個 Dockerfile 都用 `COPY --from=ghcr.io/astral-sh/uv:<版本> /uv /uvx /bin/` 取得 uv，build 期間不連 astral.sh。改回 `curl | sh` 會讓網路失敗變成難查的 `exit code 127`，因為 pipeline 的 exit code 取自 `sh`，curl 的失敗被吞掉，一路走到 `uv sync` 才報錯。升級 uv 就是改那個版本號。
 
-**Cron 設定**：Dockerfile 建置時寫入 `/etc/crontabs/root`，`5 * * * *` 執行四次（各地區），容器重啟時 `@reboot` 也觸發一次。
+**Cron 設定**：Dockerfile 建置時寫入 `/etc/crontabs/root`，`5 * * * *` 執行一次 `tor.py collect`，依序收集 `countries.py` 的每個國家，容器重啟時 `@reboot` 也觸發一次。一個國家失敗不影響其他國家。新增國家只改 `countries.py`，舊的快照沒有那個國家，頁面從加入那天開始畫。
+
+**收集中斷的提醒**：`/api/freshness` 回傳每個國家最新快照的時間，超過門檻（預設 4 小時）的列在 `stale`。readyz 只看得到資料庫，收集器靜靜停掉時 API 與資料庫照樣健康，2026-07-08 到 08-23 就這樣少了 47 天。部署主機每小時用 `tools/freshness_warn.py` 讀它，狀態改變時推播到 ntfy，用法寫在腳本開頭。
 
 ## 環境設定
 
@@ -107,7 +110,7 @@ Backend 內部讀取 `PG_CONN` 連線字串（由 docker-compose 組合）。`CO
       < backend/dbtxt/migrations/005_nullable_bandwidth_and_drop_serial_defaults.sql
     ```
 
-正式機目前套用到 005（2026-10-10）。004 在這之前一直沒有套用，2026-10-10 跟 005 一起補上，`dbtxt/*.sql` 也在同一天改成跟正式機的實際結構一致：時間欄位不帶時區，帶時區的話 `date(created_at)` 建不起索引，全新安裝會在 db-init 失敗。001 用了 `CONCURRENTLY`，不能包在交易裡執行。
+正式機目前套用到 005（2026-10-10）。004 在這之前一直沒有套用，2026-10-10 跟 005 一起補上，`dbtxt/*.sql` 也在同一天改成跟正式機的實際結構一致：時間欄位不帶時區，帶時區的話 `date(created_at)` 建不起索引，全新安裝會在 db-init 失敗。001 用了 `CONCURRENTLY`，不能包在交易裡執行。006 新增 `consensus_weight_fraction`，部署寫入這個欄位的 backend 之前要先套用，否則每一次收集都會失敗。
 
 正式機另外有一張 `test` 表，不在 `dbtxt/` 裡，跟 Pulse 的程式無關。
 

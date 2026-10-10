@@ -6,6 +6,7 @@ WORKDIR /app
 ADD pyproject.toml \
     uv.lock \
     pgdb.py \
+    countries.py \
     api.py \
     ./
 ADD ./routers ./routers

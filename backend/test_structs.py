@@ -38,9 +38,10 @@ def details(*relays):
 
 
 def test_full_relay():
-    relay = details(FULL).relays[0]
+    relay = details({**FULL, "consensus_weight_fraction": 1.2e-4}).relays[0]
     assert relay.platform == "Tor 0.4.9.14 on Linux"
     assert relay.observed_bandwidth == 7174337
+    assert relay.consensus_weight_fraction == 1.2e-4
 
 
 def test_relay_without_descriptor():

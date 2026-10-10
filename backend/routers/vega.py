@@ -15,6 +15,7 @@ from cachetools import TTLCache
 from fastapi import APIRouter, Depends, Response, status
 from pydantic import BaseModel, Field
 
+from countries import COUNTRIES
 from pgdb import PGConn
 
 CACHE_TTL_SECONDS = 300
@@ -43,33 +44,9 @@ router = APIRouter(
 )
 
 
-class Country(str, Enum):
-    """
-    Country enum for Tor relay queries.
-
-    Supported countries:
-    - TW: Taiwan
-    - JP: Japan
-    - KR: South Korea
-    - HK: Hong Kong
-    - SG: Singapore
-    - IN: India
-    - VN: Vietnam
-    - DE: Germany
-    - US: United States
-    - NL: Netherlands
-    """
-
-    TW = "tw"
-    JP = "jp"
-    KR = "kr"
-    HK = "hk"
-    SG = "sg"
-    IN = "in"
-    VN = "vn"
-    DE = "de"
-    US = "us"
-    NL = "nl"
+# 跟收集的國家同一份清單（countries.py），新增國家只改那裡
+Country = Enum("Country", {code.upper(): code for code in COUNTRIES}, type=str)
+Country.__doc__ = "Country code for Tor relay queries, one of the collected countries."
 
 
 class NodeType(Enum):
