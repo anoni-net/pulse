@@ -95,11 +95,21 @@ Backend 內部讀取 `PG_CONN` 連線字串（由 docker-compose 組合）。`CO
 
 ## Schema 修改流程
 
-修改 `dbtxt/*.sql` 後，需重建 db-init 容器讓新 schema 生效：
+`dbtxt/*.sql` 是全新安裝用的結構。db-init 每次啟動都會執行，但裡面全部是 `IF NOT EXISTS`，對已經存在的表不會有作用，重建 db-init 改不到既有的資料庫。改既有的資料庫要另外寫遷移：
 
-```bash
-docker-compose up -d --force-recreate db-init
-```
+1. 在 `dbtxt/migrations/` 新增下一個編號的 SQL，寫成可以重複執行（`IF EXISTS`、`IF NOT EXISTS`）
+2. 同步改 `dbtxt/*.sql`，讓全新安裝跟遷移之後的結構一致
+3. 驗證：拿正式機的 `pg_dump --schema-only` 還原到暫時的容器，套用遷移，再跟全新安裝的 `pg_dump --schema-only` 比對
+4. 在部署主機上手動執行，先套遷移再部署新的程式：
+
+    ```bash
+    docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' \
+      < backend/dbtxt/migrations/005_nullable_bandwidth_and_drop_serial_defaults.sql
+    ```
+
+正式機目前套用到 005（2026-10-10）。004 在這之前一直沒有套用，2026-10-10 跟 005 一起補上，`dbtxt/*.sql` 也在同一天改成跟正式機的實際結構一致：時間欄位不帶時區，帶時區的話 `date(created_at)` 建不起索引，全新安裝會在 db-init 失敗。001 用了 `CONCURRENTLY`，不能包在交易裡執行。
+
+正式機另外有一張 `test` 表，不在 `dbtxt/` 裡，跟 Pulse 的程式無關。
 
 ## 套件升級與部署
 
